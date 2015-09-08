@@ -1,0 +1,6 @@
+/.idea
+/vendor
+/php-cgi.exe
+/php.exe
+/php.ini
+/composer.phar

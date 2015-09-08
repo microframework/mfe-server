@@ -1,0 +1,29 @@
+{
+  "name": "microframework/mfe-server",
+  "type": "server",
+  "description": "Simple server for PHP 5.5",
+  "keywords": ["server", "http"],
+  "homepage": "https://github.com/microframework/mfe-server",
+  "license": "BSD",
+  "authors": [
+    {
+      "name": "Dimitriy Kalugin",
+      "email": "devinterx@gmail.com",
+      "homepage": "https://github.com/devinterx",
+      "role": "Main Developer"
+    }
+  ],
+  "require": {
+    "php": ">=5.5.0"
+  },
+  "require-dev": {
+  },
+  "config": {
+    "process-timeout": 1800
+  },
+  "autoload": {
+    "psr-4": {
+      "mfe\\server\\": "src/"
+    }
+  }
+}
