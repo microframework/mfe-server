@@ -10,8 +10,11 @@ require_once 'vendor/autoload.php';
 $server = new Server(HttpServer::build([
     WebSocketServer::class
 ], [
-    StaticServer::setup(['dir' => 'web']),
-    ApplicationServer::setup(['application' => 'DefaultApplication'])
-]));
+    StaticServer::class,
+    ApplicationServer::class
+]), $config = [
+    'document_root' => 'web',
+    'application' => 'DefaultApplication'
+]);
 
 $server->listen('0.0.0.0:8000');

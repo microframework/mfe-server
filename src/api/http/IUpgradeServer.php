@@ -12,4 +12,11 @@ interface IUpgradeServer {
      * @return static
      */
     static public function setup(array $params);
+
+    /**
+     * @param $socket
+     *
+     * @return bool
+     */
+    public function pipe($socket);
 }
