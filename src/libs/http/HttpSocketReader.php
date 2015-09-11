@@ -17,6 +17,10 @@ class HttpSocketReader implements IHttpSocketReader
     const HEADER_LENGTH = 4096;
     const PACKET_LENGTH = 1024;
 
+    public $isClose = true;
+    public $keepAlive = false;
+    public $isHttpRequest = false;
+
     protected $method;
     protected $version;
     protected $uri;
@@ -47,13 +51,23 @@ class HttpSocketReader implements IHttpSocketReader
     }
 
     /**
-     * @param $string
+     * @param string $string
      *
      * @return bool
      */
     public function hasHeader($string)
     {
-        return false;
+        return (array_key_exists($string, $this->headers)) ? true : false;
+    }
+
+    /**
+     * @param string $string
+     *
+     * @return string|null
+     */
+    public function getHeader($string)
+    {
+        return $this->hasHeader($string) ? $this->headers[$string] : null;
     }
 
     /**
@@ -64,11 +78,13 @@ class HttpSocketReader implements IHttpSocketReader
         $headers = $this->readSocket(static::HEADER_LENGTH, true);
 
         foreach (explode(static::EOL, $headers) as $num => $line) {
-            if ($num === 0) {
+            if ($num === 0 && '' !== $line) {
                 $line = explode(' ', $line);
                 $this->method = $line[0];
                 $this->uri = parse_url($line[1]);
                 $this->version = $line[2];
+
+                $this->isHttpRequest = true;
             } elseif (preg_match('/\A(\S+): (.*)\z/', $line, $matches)) {
                 $this->headers[$matches[1]] = $matches[2];
             }
@@ -87,6 +103,21 @@ class HttpSocketReader implements IHttpSocketReader
         return $this;
     }
 
+    /**
+     * @return bool
+     */
+    public function tryKeepAlive()
+    {
+        if (array_key_exists('Expect', $this->headers) && '100-continue' === $this->headers['Expect']) {
+            $this->isClose = true;
+            return $this->keepAlive = false;
+        }
+        if (array_key_exists('Connection', $this->headers) && 'keep-alive' === $this->headers['Connection']) {
+            return $this->keepAlive = true;
+        }
+        $this->isClose = true;
+        return false;
+    }
 
     /**
      * @param $upgrades
@@ -119,7 +150,10 @@ class HttpSocketReader implements IHttpSocketReader
                 $underCrLf = false;
             }
 
-            $buffer .= rtrim($result) . ($underCrLf ? static::EOL : null);
+            if ('' !== $result = trim($result)) {
+                $buffer .= $result . ($underCrLf ? static::EOL : null);
+            }
+
             if ((is_bool($underCrLf) && !$underCrLf)
                 || stream_get_meta_data($this->socket)['unread_bytes'] <= 0
             ) {
@@ -280,5 +314,10 @@ class HttpSocketReader implements IHttpSocketReader
             '_POST' => [],
             '_FILES' => []
         ];
+    }
+
+    public function getUriPath()
+    {
+        return $this->uri['path'];
     }
 }

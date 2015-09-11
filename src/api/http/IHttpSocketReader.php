@@ -25,7 +25,7 @@ interface IHttpSocketReader
     public function tryUpgrade($upgrades);
 
     /**
-     * @param $string
+     * @param string $string
      *
      * @return bool
      */
@@ -35,4 +35,11 @@ interface IHttpSocketReader
      * @return void
      */
     public function overrideGlobals();
+
+    /**
+     * @param string $string
+     *
+     * @return string
+     */
+    public function getHeader($string);
 }

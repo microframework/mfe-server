@@ -15,7 +15,7 @@ class HttpSocketWriter implements IHttpSocketWriter
     /** @var resource */
     private $socket;
 
-    /** @var IHttpSocketReader */
+    /** @var HttpSocketReader */
     private $reader;
 
     /**
@@ -41,7 +41,7 @@ class HttpSocketWriter implements IHttpSocketWriter
             'HTTP/1.1 200 OK' . static::EOL .
             'Content-Type: text/html;charset=utf-8' . static::EOL .
             'Content-Length: ' . strlen($data) . static::EOL .
-            'Connection: ' . ((!$this->reader->hasHeader('Keep-Alive')) ? 'close' : 'keep-alive') .
+            'Connection: ' . ((!$this->reader->keepAlive) ? 'close' : 'keep-alive') .
             static::EOL . static::EOL .
 
             $data;

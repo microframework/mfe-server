@@ -70,6 +70,11 @@ class HttpServer implements ITcpServer
         }
 
         $this->pipe($socket, $reader, $writer);
+
+        if ($reader->keepAlive) {
+            $this->keepAliveHandler($socket);
+        }
+
         $this->closeSocket($socket);
 
         return true;
@@ -77,7 +82,7 @@ class HttpServer implements ITcpServer
 
     /**
      * @param $socket
-     * @param IHttpSocketReader $reader
+     * @param IHttpSocketReader|HttpSocketReader $reader
      * @param IHttpSocketWriter $writer
      *
      * @return bool
@@ -87,33 +92,43 @@ class HttpServer implements ITcpServer
         if ($upgrade = $reader->parseHeaders()->tryUpgrade($this->upgrades)) {
             $this->upgradedSockets[(int)$socket] = $upgrade;
         } else {
-            $reader->parseBody();
-            $reader->overrideGlobals();
-            $this->httpRequest($socket, $reader, $writer);
-
-            if ($reader->hasHeader('Keep-Alive')) {
-                $this->keepAliveHandler($socket);
+            if($reader->isHttpRequest) {
+                $reader->tryKeepAlive();
+                $reader->parseBody();
+                $reader->overrideGlobals();
+                $this->httpRequest($socket, $reader, $writer);
             }
         }
-        return true;
-    }
 
-    protected function keepAliveHandler()
-    {
+        return true;
     }
 
     /**
      * @param resource $socket
-     * @param IHttpSocketReader $reader
+     */
+    protected function keepAliveHandler($socket)
+    {
+        $keepAlive = true;
+
+        while ($keepAlive && !feof($socket)) {
+            $reader = new HttpSocketReader($socket);
+            $writer = new HttpSocketWriter($socket, $reader);
+
+            $this->pipe($socket, $reader, $writer);
+            $keepAlive = $reader->keepAlive;
+        }
+    }
+
+    /**
+     * @param resource $socket
+     * @param IHttpSocketReader|HttpSocketReader $reader
      * @param IHttpSocketWriter $writer
      *
      * @return void
      */
     private function httpRequest($socket, IHttpSocketReader $reader, IHttpSocketWriter $writer)
     {
-        print_r($GLOBALS);
-
-        $data = 'Hello World';
+        $data = 'Hello World from ' . $reader->getUriPath();
         $writer->send($data);
     }
 }
