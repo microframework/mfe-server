@@ -1,4 +1,5 @@
 <?php namespace mfe\server\api\http;
+use ArrayObject;
 
 /**
  * Interface ITcpServer
@@ -18,4 +19,11 @@ interface ITcpServer
      * @param integer $port
      */
     public function run($ip, $port);
+
+    /**
+     * @param ArrayObject $config
+     *
+     * @return static
+     */
+    public function setConfig(ArrayObject $config);
 }

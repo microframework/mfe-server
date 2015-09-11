@@ -1,5 +1,6 @@
 <?php namespace mfe\server\libs\http\server;
 
+use ArrayObject;
 use mfe\server\api\http\ITcpServer;
 
 /**
@@ -12,12 +13,18 @@ class Server
     /** @var ITcpServer */
     private $server;
 
+    /** @var ArrayObject */
+    private $config;
+
     /**
      * @param ITcpServer $server
+     * @param array $config
      */
-    public function __construct(ITcpServer $server)
+    public function __construct(ITcpServer $server, array $config)
     {
+        $this->config = new ArrayObject($config, ArrayObject::ARRAY_AS_PROPS);
         $this->server = $server;
+        $this->server->setConfig($this->config);
     }
 
     /**

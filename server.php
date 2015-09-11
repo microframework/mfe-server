@@ -11,9 +11,10 @@ $server = new Server(HttpServer::build([
     WebSocketServer::class
 ], [
     StaticServer::class,
-    ApplicationServer::class
+    //ApplicationServer::class
 ]), $config = [
-    'document_root' => 'web',
+    'document_root' => __DIR__ . '/web',
+    'document_index' => 'index.html',
     'application' => 'DefaultApplication'
 ]);
 

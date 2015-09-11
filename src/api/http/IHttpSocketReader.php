@@ -42,4 +42,9 @@ interface IHttpSocketReader
      * @return string
      */
     public function getHeader($string);
+
+    /**
+     * @return string
+     */
+    public function getUriPath();
 }

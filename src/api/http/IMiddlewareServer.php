@@ -5,11 +5,13 @@
  *
  * @package mfe\server\api\http
  */
-interface IMiddlewareServer {
+interface IMiddlewareServer
+{
     /**
-     * @param array $params
+     * @param IHttpSocketReader $reader
+     * @param IHttpSocketWriter $writer
      *
-     * @return static
+     * @return bool
      */
-    static public function setup(array $params);
+    public function request(IHttpSocketReader $reader, IHttpSocketWriter $writer);
 }

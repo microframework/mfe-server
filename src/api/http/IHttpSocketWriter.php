@@ -13,4 +13,19 @@ interface IHttpSocketWriter
      * @return void|bool
      */
     public function send($emitter);
+
+    /**
+     * @param integer $statusCode
+     *
+     * @return static
+     */
+    public function setHttpStatus($statusCode);
+
+    /**
+     * @param string $name
+     * @param string $value
+     *
+     * @return static
+     */
+    public function addHeader($name, $value);
 }
