@@ -88,6 +88,7 @@ class HttpServer implements ITcpServer
             $this->upgradedSockets[(int)$socket] = $upgrade;
         } else {
             $reader->parseBody();
+            $reader->overrideGlobals();
             $this->httpRequest($socket, $reader, $writer);
 
             if ($reader->hasHeader('Keep-Alive')) {
@@ -110,6 +111,8 @@ class HttpServer implements ITcpServer
      */
     private function httpRequest($socket, IHttpSocketReader $reader, IHttpSocketWriter $writer)
     {
+        print_r($GLOBALS);
+
         $data = 'Hello World';
         $writer->send($data);
     }

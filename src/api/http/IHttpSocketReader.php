@@ -30,4 +30,9 @@ interface IHttpSocketReader
      * @return bool
      */
     public function hasHeader($string);
+
+    /**
+     * @return void
+     */
+    public function overrideGlobals();
 }

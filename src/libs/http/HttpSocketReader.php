@@ -1,5 +1,6 @@
 <?php namespace mfe\server\libs\http;
 
+use ArrayObject;
 use mfe\server\api\http\IUpgradeServer;
 use mfe\server\api\http\IHttpSocketReader;
 use mfe\server\libs\http\server\exceptions\HttpServerException;
@@ -30,6 +31,12 @@ class HttpSocketReader implements IHttpSocketReader
     private $socket;
 
     private $filesToDelete = [];
+
+    /** @var null|array */
+    private $parsedMultiform;
+
+    /** @var array */
+    private $contentType;
 
     /**
      * @param resource $socket
@@ -121,5 +128,157 @@ class HttpSocketReader implements IHttpSocketReader
         }
 
         return $buffer;
+    }
+
+    public function overrideGlobals()
+    {
+        $this->overrideSERVER();
+        $this->overrideGET();
+        $this->overridePOST();
+        $this->overrideFILES();
+        $this->overrideCOOKIE();
+    }
+
+    private function overrideSERVER()
+    {
+        $_SERVER = array_merge($this->headers, []);
+    }
+
+    private function overrideGET()
+    {
+        $_GET = [];
+        if (array_key_exists('query', $this->uri)) {
+            parse_str($this->uri['query'], $_GET);
+        }
+    }
+
+    private function overridePOST()
+    {
+        if (array_key_exists('Content-Type', $this->headers) && $this->method === 'POST') {
+            $this->contentType = explode(';', $this->headers['Content-Type']);
+
+            switch ($this->contentType[0]) {
+                case 'application/x-www-form-urlencoded':
+                    if ('' !== $this->body) {
+                        parse_str($this->body, $_POST);
+                    }
+                    break;
+                case 'multipart/form-data':
+                    $_POST = $this->parseMultiform($this->contentType)['_POST'];
+                    break;
+            }
+        }
+    }
+
+    private function overrideFILES()
+    {
+        if ($this->contentType) {
+            $_FILES = $this->parseMultiform($this->contentType)['_FILES'];
+        }
+    }
+
+    private function overrideCOOKIE()
+    {
+        $_COOKIE = [];
+        if (array_key_exists('Cookie', $this->headers)) {
+            $cookies = explode('; ', $this->headers['Cookie']);
+            foreach ($cookies as $cookie) {
+                $cookie = explode('=', $cookie, 2);
+                $_COOKIE[$cookie[0]] = $cookie[1];
+            }
+        }
+    }
+
+    /**
+     * @param array $contentType
+     *
+     * @return array
+     * @throws HttpServerException
+     */
+    private function parseMultiform(array $contentType)
+    {
+        if ($this->parsedMultiform) {
+            return $this->parsedMultiform;
+        }
+
+        if (array_key_exists(1, $contentType) && 'multipart/form-data' === $contentType[0]) {
+            $boundary = null;
+            if ($boundary = explode('=', trim($contentType[1]))) {
+                if (array_key_exists(1, $boundary)) {
+                    $post = $files = [];
+                    $boundary = $boundary[1];
+
+                    if (substr($this->body, -strlen('--' . $boundary . static::EOL)) === '--' . $boundary . static::EOL) {
+                        $this->body = substr($this->body, 0, -strlen('--' . $boundary . static::EOL));
+                    }
+
+                    $parts = explode('--' . $boundary . static::EOL, $this->body);
+
+                    foreach ($parts as $part) {
+                        $entity = new ArrayObject([
+                            'headers' => [],
+                            'value' => null,
+                            'disposition' => null,
+                            'type' => null
+                        ], ArrayObject::ARRAY_AS_PROPS);
+
+                        while (strlen($line = substr($part, 0, strpos($part, static::EOL))) > 0) {
+                            $part = substr($part, strpos($part, static::EOL) + 2);
+
+                            if (!strpos($line, ':')) {
+                                continue;
+                            }
+
+                            $header_name = substr($line, 0, strpos($line, ':'));
+                            $header_value = ltrim(substr($line, strpos($line, ':') + 1), ' ');
+
+                            $entity->headers[] = ['name' => $header_name, 'value' => $header_value];
+                        }
+
+                        $entity->value = ltrim(substr($part, 0, -2), static::EOL);
+
+                        foreach ($entity->headers as $header) {
+                            if (strcasecmp($header['name'], 'Content-Disposition') === 0) {
+                                $entity->disposition = $header['value'];
+                            } else if (strcasecmp($header['name'], 'Content-Type')) {
+                                $entity->type = $header['name'];
+                            }
+                        }
+
+                        if (null !== $entity->disposition && substr($entity->disposition, strlen('form-data'), 1) === ';') {
+                            $disposition_parameters = [];
+                            foreach (array_map('trim', explode(';', substr($entity->disposition, strlen('form-data') + 1))) as $param) {
+                                $param = explode('=', $param);
+                                $disposition_parameters[$param[0]] = $param[1];
+                            }
+                            if (array_key_exists('filename', $disposition_parameters)) {
+                                $tmp = tempnam(sys_get_temp_dir(), 'php_file');
+                                $this->filesToDelete[] = $tmp;
+                                file_put_contents($tmp, $entity->value);
+                                $files[$disposition_parameters['name']] = [
+                                    'name' => $disposition_parameters['filename'],
+                                    'tmp_name' => $tmp,
+                                    'size' => filesize($tmp),
+                                    'type' => null !== $entity->type ? $entity->type : 'application/octet-stream'
+                                ];
+                            } else {
+                                $post[$disposition_parameters['name']] = $entity->value;
+                            }
+                        }
+                    }
+
+                    return $this->parsedMultiform = [
+                        '_POST' => $post,
+                        '_FILES' => $files
+                    ];
+                }
+                throw new HttpServerException('Not found Boundary in multipart/form-data');
+            }
+        }
+
+        return $this->parsedMultiform = [
+            '_POST' => [],
+            '_FILES' => []
+        ];
     }
 }
