@@ -1,5 +1,6 @@
 <?php namespace mfe\server\api\http;
 use ArrayObject;
+use Thread;
 
 /**
  * Interface ITcpServer
@@ -15,10 +16,9 @@ interface ITcpServer
     static public function build(array $upgrades, array $middleware);
 
     /**
-     * @param string $ip
-     * @param integer $port
+     * @return void
      */
-    public function run($ip, $port);
+    public function run();
 
     /**
      * @param ArrayObject $config

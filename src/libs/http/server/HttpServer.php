@@ -9,6 +9,8 @@ use mfe\server\api\http\IUpgradeServer;
 use mfe\server\libs\http\HttpSocketReader;
 use mfe\server\libs\http\HttpSocketWriter;
 
+require_once dirname(dirname(dirname(dirname(__DIR__)))) . '/vendor/autoload.php';
+
 /**
  * Class HttpServer
  *
@@ -16,7 +18,7 @@ use mfe\server\libs\http\HttpSocketWriter;
  */
 class HttpServer implements ITcpServer
 {
-    use TStreamServer;
+    public $enableKeepAlive = false;
 
     /** @var ArrayObject */
     private $config;
@@ -30,10 +32,21 @@ class HttpServer implements ITcpServer
     /** @var IUpgradeServer[] */
     private $upgradedSockets = [];
 
-    public function __construct($upgrades, $middleware)
+    /** @var resource */
+    private $socket;
+
+    /**
+     * @param $socket
+     * @param array $proxy
+     * @param ArrayObject $config
+     */
+    public function __construct($socket, array $proxy, ArrayObject $config)
     {
-        $this->upgrades = $upgrades;
-        $this->middleware = $middleware;
+        $this->socket = $socket;
+        $this->setConfig($config);
+        $this->upgrades = $proxy['upgrades'];
+        $this->middleware = $proxy['middleware'];
+        $this->run();
     }
 
     /**
@@ -44,7 +57,11 @@ class HttpServer implements ITcpServer
      */
     static public function build(array $upgrades = [], array $middleware = [])
     {
-        return new static($upgrades, $middleware);
+        return [
+            '_CLASS' => __CLASS__,
+            'upgrades' => $upgrades,
+            'middleware' => $middleware
+        ];
     }
 
     /**
@@ -57,14 +74,9 @@ class HttpServer implements ITcpServer
         $this->config = $config;
     }
 
-    public function run($ip, $port)
+    public function run()
     {
-        $this->listenStreamServer($ip, $port);
-        //stream_set_chunk_size($this->server, 1024);
-        //stream_set_blocking($this->server, 1);
-        stream_set_timeout($this->server, 5);
-        $this->acceptSockets();
-        $this->closeStreamServer();
+        $this->handleSocket($this->socket);
     }
 
     /**
@@ -90,7 +102,7 @@ class HttpServer implements ITcpServer
             $this->keepAliveHandler($socket);
         }
 
-        $this->closeSocket($socket);
+        fclose($socket);
 
         return true;
     }
@@ -108,7 +120,9 @@ class HttpServer implements ITcpServer
             $this->upgradedSockets[(int)$socket] = $upgrade;
         } else {
             if ($reader->isHttpRequest) {
-                $reader->tryKeepAlive();
+                if ($this->enableKeepAlive) {
+                    $reader->tryKeepAlive();
+                }
                 $reader->parseBody();
                 $reader->overrideGlobals();
                 $this->httpRequest($reader, $writer);
@@ -140,7 +154,7 @@ class HttpServer implements ITcpServer
      *
      * @return void
      */
-    private function httpRequest(IHttpSocketReader $reader, IHttpSocketWriter $writer)
+    protected function httpRequest(IHttpSocketReader $reader, IHttpSocketWriter $writer)
     {
         foreach ($this->middleware as $middleware) {
             $middleware = new $middleware($this->config);
@@ -151,6 +165,6 @@ class HttpServer implements ITcpServer
             }
         }
 
-        $writer->setHttpStatus(404)->send('Error 404: Not found file by path '. $reader->getUriPath());
+        $writer->setHttpStatus(404)->send('Error 404: Not found file by path ' . $reader->getUriPath());
     }
 }

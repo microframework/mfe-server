@@ -50,6 +50,12 @@ trait TStreamServer
     protected function acceptSockets()
     {
         while (true) {
+            foreach ($this->sockets as $socket) {
+                if (get_resource_type($socket) !== 'stream') {
+                    unset($this->sockets[(int)$socket]);
+                }
+            }
+
             $sockets = $this->sockets;
             $sockets[(int)$this->server] = $this->server;
             $write = $except = null;
@@ -89,7 +95,7 @@ trait TStreamServer
     /**
      * @param resource $socket
      */
-    protected function closeSocket($socket)
+    public function closeSocket($socket)
     {
         unset($this->sockets[(int)$socket]);
         fclose($socket);

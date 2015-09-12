@@ -43,7 +43,7 @@ class HttpSocketWriter implements IHttpSocketWriter
      */
     public function send($data, $trim = true)
     {
-        if($trim){
+        if ($trim) {
             $data = trim($data);
         }
 
