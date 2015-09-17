@@ -1,4 +1,5 @@
 <?php namespace mfe\server\api\http;
+use ArrayObject;
 
 /**
  * Interface IHttpSocketReader
@@ -18,11 +19,19 @@ interface IHttpSocketReader
     public function parseBody();
 
     /**
-     * @param $upgrades
+     * @param array $upgrades
+     * @param ArrayObject $config
      *
-     * @return IUpgradeServer
+     * @return bool|IUpgradeServer
      */
-    public function tryUpgrade($upgrades);
+    public function tryUpgrade(array $upgrades, ArrayObject $config);
+
+    /**
+     * @param string $response
+     *
+     * @return bool
+     */
+    public function upgradeWithResponse($response);
 
     /**
      * @param string $string

@@ -35,6 +35,8 @@ class HttpServer implements ITcpServer
     /** @var resource */
     private $socket;
 
+    public $isClose = true;
+
     /**
      * @param $socket
      * @param array $proxy
@@ -46,6 +48,12 @@ class HttpServer implements ITcpServer
         $this->setConfig($config);
         $this->upgrades = $proxy['upgrades'];
         $this->middleware = $proxy['middleware'];
+        $this->run();
+    }
+
+    public function handle($socket)
+    {
+        $this->socket = $socket;
         $this->run();
     }
 
@@ -93,16 +101,23 @@ class HttpServer implements ITcpServer
 
         if ([] !== $this->upgrades && array_key_exists((int)$socket, $this->upgradedSockets)) {
             $upgrade = $this->upgradedSockets[(int)$socket];
-            return $upgrade->pipe($socket, $reader, $writer);
+            $upgrade->pipe($socket, $reader, $writer);
+            $this->isClose = $reader->isClose = $upgrade->isClose();
+        } else {
+            $this->pipe($socket, $reader, $writer);
+
+            if ($reader->keepAlive) {
+                $this->keepAliveHandler($socket);
+            }
         }
 
-        $this->pipe($socket, $reader, $writer);
-
-        if ($reader->keepAlive) {
-            $this->keepAliveHandler($socket);
+        if ($this->isClose || $reader->isClose || feof($socket)) {
+            if (array_key_exists((int)$socket, $this->upgradedSockets)) {
+                $upgrade->closeSocket()->pipe($socket, $reader, $writer);
+                unset($this->upgradedSockets[(int)$socket]);
+            }
+            fclose($socket);
         }
-
-        fclose($socket);
 
         return true;
     }
@@ -116,8 +131,10 @@ class HttpServer implements ITcpServer
      */
     protected function pipe($socket, IHttpSocketReader $reader, IHttpSocketWriter $writer)
     {
-        if ($upgrade = $reader->parseHeaders()->tryUpgrade($this->upgrades)) {
-            $this->upgradedSockets[(int)$socket] = $upgrade;
+        if ($upgrade = $reader->parseHeaders()->tryUpgrade($this->upgrades, $this->config)) {
+            $this->upgradedSockets[(int)$socket] = $upgrade->registerMiddleware($this->middleware);
+            $upgrade->pipe($socket, $reader, $writer);
+            $this->isClose = $reader->isClose = $upgrade->isClose();
         } else {
             if ($reader->isHttpRequest) {
                 if ($this->enableKeepAlive) {
@@ -145,6 +162,7 @@ class HttpServer implements ITcpServer
 
             $this->pipe($socket, $reader, $writer);
             $keepAlive = $reader->keepAlive;
+            $this->isClose = !$keepAlive;
         }
     }
 

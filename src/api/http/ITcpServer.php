@@ -21,6 +21,11 @@ interface ITcpServer
     public function run();
 
     /**
+     * @param resource $socket
+     */
+    public function handle($socket);
+
+    /**
      * @param ArrayObject $config
      *
      * @return static

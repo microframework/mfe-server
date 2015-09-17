@@ -1,6 +1,7 @@
 <?php namespace mfe\server\libs\http\server;
 
 use ArrayObject;
+use mfe\server\api\http\ITcpServer;
 use mfe\server\libs\http\server\exceptions\StreamServerException;
 
 /**
@@ -17,6 +18,9 @@ class StreamServer
 
     /** @var array */
     private $builder;
+
+    /** @var ITcpServer */
+    private $build;
 
     /**
      * @param string $builder
@@ -49,9 +53,13 @@ class StreamServer
      */
     protected function handleSocket($socket)
     {
-        new $this->builder['_CLASS']($socket, [
-            'upgrades' => $this->builder['upgrades'],
-            'middleware' => $this->builder['middleware']
-        ], $this->config);
+        if (!$this->build) {
+            $this->build = new $this->builder['_CLASS']($socket, [
+                'upgrades' => $this->builder['upgrades'],
+                'middleware' => $this->builder['middleware']
+            ], $this->config);
+        } else {
+            $this->build->handle($socket);
+        }
     }
 }

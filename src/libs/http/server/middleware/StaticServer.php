@@ -34,7 +34,7 @@ class StaticServer implements IMiddlewareServer
      */
     public function request(IHttpSocketReader $reader, IHttpSocketWriter $writer)
     {
-        $path = str_replace('..', '/', $reader->getUriPath());
+        $path = str_replace('..', '/', $reader->getURIPath());
 
         if ($path === '/') {
             $file = $this->document_root . '/' . $this->document_index;

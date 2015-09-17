@@ -77,8 +77,10 @@ class HttpSocketReader implements IHttpSocketReader
     {
         $headers = $this->readSocket(static::HEADER_LENGTH, true);
 
+
+
         foreach (explode(static::EOL, $headers) as $num => $line) {
-            if ($num === 0 && '' !== $line) {
+            if ($num === 0 && '' !== $line && strpos($line, 'HTTP')) {
                 $line = explode(' ', $line);
                 $this->method = $line[0];
                 $this->uri = parse_url($line[1]);
@@ -120,13 +122,35 @@ class HttpSocketReader implements IHttpSocketReader
     }
 
     /**
-     * @param $upgrades
+     * @param array $upgrades
+     * @param ArrayObject $config
      *
      * @return bool|IUpgradeServer
      */
-    public function tryUpgrade($upgrades)
+    public function tryUpgrade(array $upgrades, ArrayObject $config = null)
     {
+        foreach ($upgrades as $upgrade) {
+            /** @var IUpgradeServer|bool $upgrade */
+            if ($upgrade = $upgrade::tryUpgrade($this, $config)) {
+                return $upgrade;
+            }
+        }
         return false;
+    }
+
+    /**
+     * @param string $response
+     *
+     * @return bool
+     */
+    public function upgradeWithResponse($response)
+    {
+        try {
+            fwrite($this->socket, $response);
+            return true;
+        } catch (HttpServerException $e) {
+            return false;
+        }
     }
 
     /**
@@ -175,7 +199,49 @@ class HttpSocketReader implements IHttpSocketReader
 
     private function overrideSERVER()
     {
-        $_SERVER = array_merge($this->headers, []);
+        $accept = $this->hasHeader('Accept') ? $this->getHeader('Accept') : null;
+        $accept_charset = $this->hasHeader('Accept-Charset') ? $this->getHeader('Accept-Charset') : null;
+        $accept_encoding = $this->hasHeader('Accept-Encoding') ? $this->getHeader('Accept-Encoding') : null;
+        $connection = $this->hasHeader('Connection') ? $this->getHeader('Connection') : null;
+        $referer = $this->hasHeader('Referer') ? $this->getHeader('Referer') : null;
+        $host = $this->hasHeader('Host') ? $this->getHeader('Host') : null;
+        $user_agent = $this->hasHeader('User-Agent') ? $this->getHeader('User-Agent') : null;
+
+        $peerInfo = $this->getPeerInfo();
+
+        $_SERVER = array_merge([
+            'SERVER_PROTOCOL' => $this->version,
+            'SERVER_SOFTWARE' => 'MfE Server',
+            'REQUEST_METHOD' => $this->method,
+            'SERVER_ADDR' => '127.0.0.1',
+            'SERVER_NAME' => '127.0.0.1',
+            'REQUEST_TIME' => time(),
+            'DOCUMENT_ROOT' => array_key_exists('DOCUMENT_ROOT', $_SERVER) ? $_SERVER['DOCUMENT_ROOT'] : __DIR__,
+            'HTTP_ACCEPT' => $accept,
+            'HTTP_ACCEPT_CHARSET' => $accept_charset,
+            'HTTP_ACCEPT_ENCODING' => $accept_encoding,
+            'HTTP_CONNECTION' => $connection,
+            'HTTP_HOST' => $host,
+            'HTTP_REFERER' => $referer,
+            'HTTP_USER_AGENT' => $user_agent,
+            'REMOTE_ADDR' => $peerInfo[0],
+            'REMOTE_HOST' => $peerInfo[0],
+            'REMOTE_PORT' => $peerInfo[1],
+            'SCRIPT_FILENAME' => __FILE__,
+            'SERVER_PORT' => 80,
+            'SERVER_SIGNATURE' => 'MfE Server',
+            'SCRIPT_NAME' => __FILE__,
+            'REQUEST_URI' => $this->getFullURI()
+        ], $this->headerNormalizeGlobals($this->headers));
+    }
+
+    private function headerNormalizeGlobals(array $array)
+    {
+        $result = [];
+        foreach ($array as $key => $value) {
+            $result['HTTP_' . strtoupper(str_replace('-', '_', $key))] = $value;
+        }
+        return $result;
     }
 
     private function overrideGET()
@@ -316,8 +382,18 @@ class HttpSocketReader implements IHttpSocketReader
         ];
     }
 
-    public function getUriPath()
+    public function getURIPath()
     {
         return $this->uri['path'];
+    }
+
+    private function getFullURI()
+    {
+        return $this->uri['path'];
+    }
+
+    public function getPeerInfo()
+    {
+        return explode(':', stream_socket_get_name($this->socket, true));
     }
 }
